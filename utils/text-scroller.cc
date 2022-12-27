@@ -55,6 +55,8 @@ static int usage(const char *progname) {
           "\t-C <r,g,b>        : Text Color. Default 255,255,255 (white)\n"
           "\t-B <r,g,b>        : Background-Color. Default 0,0,0\n"
           "\t-O <r,g,b>        : Outline-Color, e.g. to increase contrast.\n"
+          "\n"
+          "\t-h                : Character height"
           );
   fprintf(stderr, "\nGeneral LED matrix options:\n");
   rgb_matrix::PrintMatrixFlags(stderr);
@@ -105,9 +107,10 @@ int main(int argc, char *argv[]) {
   int loops = -1;
   int blink_on = 0;
   int blink_off = 0;
+  int letter_height = 0;
 
   int opt;
-  while ((opt = getopt(argc, argv, "x:y:f:C:B:O:t:s:l:b:")) != -1) {
+  while ((opt = getopt(argc, argv, "x:y:f:C:B:O:t:s:l:b:h:")) != -1) {
     switch (opt) {
     case 's': speed = atof(optarg); break;
     case 'b':
@@ -140,6 +143,7 @@ int main(int argc, char *argv[]) {
       }
       with_outline = true;
       break;
+    case 'h': letter_height = atoi(optarg); break;
     default:
       return usage(argv[0]);
     }
@@ -241,6 +245,11 @@ int main(int argc, char *argv[]) {
                                     x, y + font.baseline(),
                                     color, NULL,
                                     line.c_str(), letter_spacing);
+
+      rgb_matrix::DrawText(offscreen_canvas, font,
+                           x, y + font.baseline() + letter_height,
+                           color, NULL,
+                           line.c_str(), letter_spacing);
     }
 
     x += scroll_direction;
