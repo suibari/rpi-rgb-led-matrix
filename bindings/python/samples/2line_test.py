@@ -10,17 +10,13 @@ from graphics import graphics
 import time
 import requests
 from bs4 import BeautifulSoup
-import re
+import threading
 
-options = RGBMatrixOptions()
-options.rows = 32
-options.cols = 64
-options.gpio_slowdown = 0
-matrix = RGBMatrix(options = options)
+atcl_arr = []
+temp = ""
 
 def getNews():
-    atcl_arr = []
-    
+    print("getting NEWS...")
     URL = "https://www.japantimes.co.jp/"
     rest = requests.get(URL)
     soup = BeautifulSoup(rest.text, "html.parser")
@@ -32,6 +28,7 @@ def getNews():
     return atcl_arr
         
 def getTemperature():
+    print("getting current temperature...")
     URL = "https://tenki.jp/amedas/3/17/46091.html" # 海老名のアメダス
     rest = requests.get(URL)
     soup = BeautifulSoup(rest.text, "html.parser")
@@ -41,28 +38,27 @@ def getTemperature():
     
     return temp.text
 
-if __name__ == "__main__":
+def displayLED():
+    global atcl_arr
+    global temp
+    
+    options = RGBMatrixOptions()
+    options.rows = 32
+    options.cols = 64
+    options.gpio_slowdown = 0
+    matrix = RGBMatrix(options = options)
+    
     offscreen_canvas = matrix.CreateFrameCanvas()
     
     # LEDマトリクス設定
     print("setting LED matrix options...")
-    text1 = "hello hello"
-    text2 = "ゆかりはゆかり"
     font1 = graphics.Font()
     font1.LoadFont("/home/pi/Downloads/font/sazanami-20040629/sazanami-gothic_16.bdf") # 上の行と分割しないとセグフォ
     font2 = graphics.Font()
     font2.LoadFont("/home/pi/Downloads/font/misaki_bdf_2021-05-05/misaki_gothic_2nd.bdf")
     textColor = graphics.Color(255, 255, 0)
     pos = offscreen_canvas.width
-    
-    # ニュース取得
-    print("getting NEWS...")
-    atcl_arr = getNews()
-    
-    # 気温取得
-    print("getting current temperature...")
-    temp = getTemperature()
-    
+
     # Start loop
     i = 0
     print("Press CTRL-C to stop")
@@ -83,3 +79,27 @@ if __name__ == "__main__":
         
         time.sleep(0.05)
         offscreen_canvas = matrix.SwapOnVSync(offscreen_canvas)
+
+def mainloop(time_interval, f, another):
+    worker()
+    
+    now = time.time()
+    t0 = threading.Thread(target=another)
+    t0.setDaemon(True)
+    t0.start()
+    while True:
+        t = threading.Thread(target=f)
+        t.setDaemon(True)
+        t.start()
+        t.join()
+        wait_time = time_interval - ( (time.time() - now) % time_interval )
+        time.sleep(wait_time)
+
+def worker():
+    global atcl_arr
+    global temp
+    atcl_arr = getNews()
+    temp = getTemperature()
+    
+if __name__ == "__main__":
+    mainloop(3600, worker, displayLED)
