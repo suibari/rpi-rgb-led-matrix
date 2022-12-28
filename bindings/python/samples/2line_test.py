@@ -11,37 +11,46 @@ import time
 import requests
 from bs4 import BeautifulSoup
 import threading
+import datetime
 
 atcl_arr = []
 temp = ""
 
 def getNews():
-    print("getting NEWS...")
+    global atcl_arr
+    atcl_arr_new = []
+    
+    print(str(datetime.datetime.now())+": getting NEWS...")
     URL = "https://www.japantimes.co.jp/"
     rest = requests.get(URL)
     soup = BeautifulSoup(rest.text, "html.parser")
     atcl_list = soup.find_all(attrs={"class" : "article-title"})
     for atcl in atcl_list:
         #print(atcl.string)
-        atcl_arr.append(atcl.string)
+        atcl_arr_new.append(atcl.string)
+    atcl_arr = atcl_arr_new
     
     return atcl_arr
         
 def getTemperature():
-    print("getting current temperature...")
+    global temp
+    
+    print(str(datetime.datetime.now())+": getting current temperature...")
     URL = "https://tenki.jp/amedas/3/17/46091.html" # 海老名のアメダス
     rest = requests.get(URL)
     soup = BeautifulSoup(rest.text, "html.parser")
-    temp = soup.select('.amedas-current-list')[0].select('li')[0]
-    temp.select('span')[0].decompose()
+    temp_tag = soup.select('.amedas-current-list')[0].select('li')[0]
+    temp_tag.select('span')[0].decompose()
+    temp = temp_tag.text
     #print(temp.text)
     
-    return temp.text
+    return temp
 
 def displayLED():
     global atcl_arr
     global temp
     
+    # LEDマトリクス設定
     options = RGBMatrixOptions()
     options.rows = 32
     options.cols = 64
@@ -49,16 +58,16 @@ def displayLED():
     matrix = RGBMatrix(options = options)
     
     offscreen_canvas = matrix.CreateFrameCanvas()
+    pos = offscreen_canvas.width
     
-    # LEDマトリクス設定
+    # 文字設定
     print("setting LED matrix options...")
     font1 = graphics.Font()
     font1.LoadFont("/home/pi/Downloads/font/sazanami-20040629/sazanami-gothic_16.bdf") # 上の行と分割しないとセグフォ
     font2 = graphics.Font()
     font2.LoadFont("/home/pi/Downloads/font/misaki_bdf_2021-05-05/misaki_gothic_2nd.bdf")
     textColor = graphics.Color(255, 255, 0)
-    pos = offscreen_canvas.width
-
+    
     # Start loop
     i = 0
     print("Press CTRL-C to stop")
@@ -80,26 +89,25 @@ def displayLED():
         time.sleep(0.05)
         offscreen_canvas = matrix.SwapOnVSync(offscreen_canvas)
 
-def mainloop(time_interval, f, another):
-    worker()
-    
-    now = time.time()
-    t0 = threading.Thread(target=another)
-    t0.setDaemon(True)
-    t0.start()
-    while True:
-        t = threading.Thread(target=f)
-        t.setDaemon(True)
-        t.start()
-        t.join()
-        wait_time = time_interval - ( (time.time() - now) % time_interval )
-        time.sleep(wait_time)
-
 def worker():
     global atcl_arr
     global temp
     atcl_arr = getNews()
     temp = getTemperature()
+
+def mainloop(time_interval, f, another):
+    f() # 最初に情報取得してないと描画時にoutofindex
+    
+    now = time.time()
+    t0 = threading.Thread(target=another)
+    t0.setDaemon(True)
+    t0.start()
+    while True: # 5分後、以後5分ごとに実行
+        wait_time = time_interval - ( (time.time() - now) % time_interval )
+        time.sleep(wait_time)
+        t = threading.Thread(target=f)
+        t.setDaemon(True)
+        t.start()
     
 if __name__ == "__main__":
-    mainloop(3600, worker, displayLED)
+    mainloop(300, worker, displayLED)
