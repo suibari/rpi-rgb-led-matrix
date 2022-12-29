@@ -10,8 +10,10 @@ from graphics import graphics
 import time
 import requests
 from bs4 import BeautifulSoup
+import re
 import threading
 import datetime
+from PIL import Image
 
 atcl_arr = []
 temp = ""
@@ -20,13 +22,20 @@ def getNews():
     global atcl_arr
     atcl_arr_new = []
     
+    # 接続
     print(str(datetime.datetime.now())+": getting NEWS...")
-    URL = "https://www.japantimes.co.jp/"
+    #URL = "https://www.japantimes.co.jp/" # JT
+    URL = "https://www.nikkei.com/news/category/" # 日経
     rest = requests.get(URL)
     soup = BeautifulSoup(rest.text, "html.parser")
-    atcl_list = soup.find_all(attrs={"class" : "article-title"})
+    
+    # HTMLパース
+    #atcl_list = soup.find_all(attrs={"class" : "article-title"}) #JT
+    atcl_list = soup.select('#CONTENTS_MAIN')[0].find_all(class_=re.compile("_titleL")) # 日経
+    
+    # 格納
     for atcl in atcl_list:
-        #print(atcl.string)
+        print(atcl.string)
         atcl_arr_new.append(atcl.string)
     atcl_arr = atcl_arr_new
     
@@ -68,6 +77,10 @@ def displayLED():
     font2.LoadFont("/home/pi/Downloads/font/misaki_bdf_2021-05-05/misaki_gothic_2nd.bdf")
     textColor = graphics.Color(255, 255, 0)
     
+    # 画像設定
+    image = Image.open("/home/pi/ledmatrix/twitter_dot.png")
+    image.thumbnail((8, 8), Image.ANTIALIAS)
+    
     # Start loop
     i = 0
     print("Press CTRL-C to stop")
@@ -75,6 +88,7 @@ def displayLED():
         offscreen_canvas.Clear()
         graphics.DrawText(offscreen_canvas, font2, 0, 7, textColor, "外気温"+temp) # 静止文字
         length = graphics.DrawText(offscreen_canvas, font1, pos, 31, textColor, atcl_arr[i]) # 動く文字
+        matrix.SetImage(image.convert('RGB'), 0, 8, False) # 画像
         
         # 動く文字の位置をずらす
         pos = pos - 1
