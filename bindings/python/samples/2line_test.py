@@ -60,6 +60,7 @@ class createLED():
     def __init__(self):
         self.font = []             # フォント
         self.textColor = []        # テキストカラー
+        self.flagPreparedToDisplay = False # メイン関数を表示する準備ができたかどうかのフラグ
         
         # LEDマトリクス設定
         options = RGBMatrixOptions()
@@ -72,16 +73,14 @@ class createLED():
         self.offscreen_canvas = self.matrix.CreateFrameCanvas()
         
         # 最低限のフォントだけ読み込み、WAITINGを表示させておく
-        print('display "WAITING..."')
-        font_simple = graphics.Font()
-        font_simple.LoadFont("/home/pi/rpi-rgb-led-matrix/fonts/10x20.bdf")
-        textColor_simple = graphics.Color(255, 255, 0)
-        graphics.DrawText(self.offscreen_canvas, font_simple, 0, 31, textColor_simple, "WAITING...") # 静止文字
+        self.f = threading.Thread(target=self.displayLEDTemp)
+        self.f.setDaemon(True)
+        self.f.start()
         
         # 文字設定
         print("setting LED matrix options...")
         self.font.append(graphics.Font())
-        self.font[0].LoadFont("/home/pi/Downloads/font/sazanami-20040629/sazanami-gothic_16.bdf") # 上の行と分割しないとセグフォ
+        self.font[0].LoadFont("/home/pi/Downloads/font/sazanami-20040629/sazanami-gothic_14.bdf") # 上の行と分割しないとセグフォ
         self.font.append(graphics.Font())
         self.font[1].LoadFont("/home/pi/Downloads/font/misaki_bdf_2021-05-05/misaki_gothic_2nd.bdf")
         self.textColor.append(graphics.Color(255, 255, 0))
@@ -89,19 +88,32 @@ class createLED():
         # 画像設定
         self.image = Image.open("/home/pi/ledmatrix/twitter_dot.png")
 
-    # パネル点灯する関数
-    def displayLED(self):
+    # パネル点灯する関数（一時的）
+    def displayLEDTemp(self):
+        print('display "WAITING..."')
+        font_simple = graphics.Font()
+        font_simple.LoadFont("/home/pi/rpi-rgb-led-matrix/fonts/5x8.bdf")
+        textColor_simple = graphics.Color(255, 255, 0)
+        #while (self.flagPreparedToDisplay == False):
+        timeout_start = time.time()
+        while time.time() < timeout_start + 10: # 10秒経過後にWAITING表示を消すはずだが機能しない。ただ上のwhileより処理が早いのでこちらを使ってる…
+            graphics.DrawText(self.offscreen_canvas, font_simple, 0, 31, textColor_simple, "WAITING...") # 静止文字
+            self.offscreen_canvas = self.matrix.SwapOnVSync(self.offscreen_canvas)
+
+    # パネル点灯する関数（メイン）
+    def displayLEDMain(self):
         global atcl_arr
         global temp
         
         # Start loop
         i = 0
         pos = self.offscreen_canvas.width
+        self.flagPreparedToDisplay = True
         print("display LED, Press CTRL-C to stop")
         while True:
             self.offscreen_canvas.Clear()
             graphics.DrawText(self.offscreen_canvas, self.font[1], 0, 7, self.textColor[0], "外気温"+temp) # 静止文字
-            length = graphics.DrawText(self.offscreen_canvas, self.font[0], pos, 31, self.textColor[0], atcl_arr[i]) # 動く文字
+            length = graphics.DrawText(self.offscreen_canvas, self.font[0], pos, 29, self.textColor[0], atcl_arr[i]) # 動く文字
             self.matrix.SetImage(self.image.convert('RGB'), 0, 8, False) # 画像
             
             # 動く文字の位置をずらす
@@ -139,4 +151,4 @@ def mainloop(time_interval, f, another):
     
 if __name__ == "__main__":
     LED = createLED()
-    mainloop(300, worker, LED.displayLED)
+    mainloop(300, worker, LED.displayLEDMain)
