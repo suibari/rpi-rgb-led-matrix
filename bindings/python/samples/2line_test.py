@@ -55,54 +55,68 @@ def getTemperature():
     
     return temp
 
-def displayLED():
-    global atcl_arr
-    global temp
-    
-    # LEDマトリクス設定
-    options = RGBMatrixOptions()
-    options.rows = 32
-    options.cols = 64
-    options.gpio_slowdown = 0
-    matrix = RGBMatrix(options = options)
-    
-    offscreen_canvas = matrix.CreateFrameCanvas()
-    pos = offscreen_canvas.width
-    
-    # 文字設定
-    print("setting LED matrix options...")
-    font1 = graphics.Font()
-    font1.LoadFont("/home/pi/Downloads/font/sazanami-20040629/sazanami-gothic_16.bdf") # 上の行と分割しないとセグフォ
-    font2 = graphics.Font()
-    font2.LoadFont("/home/pi/Downloads/font/misaki_bdf_2021-05-05/misaki_gothic_2nd.bdf")
-    textColor = graphics.Color(255, 255, 0)
-    
-    # 画像設定
-    image = Image.open("/home/pi/ledmatrix/twitter_dot.png")
-    image.thumbnail((8, 8), Image.ANTIALIAS)
-    
-    # Start loop
-    i = 0
-    print("Press CTRL-C to stop")
-    while True:
-        offscreen_canvas.Clear()
-        graphics.DrawText(offscreen_canvas, font2, 0, 7, textColor, "外気温"+temp) # 静止文字
-        length = graphics.DrawText(offscreen_canvas, font1, pos, 31, textColor, atcl_arr[i]) # 動く文字
-        matrix.SetImage(image.convert('RGB'), 0, 8, False) # 画像
+class createLED():
+    # パネル設定用関数
+    def __init__(self):
+        self.font = []             # フォント
+        self.textColor = []        # テキストカラー
         
-        # 動く文字の位置をずらす
-        pos = pos - 1
-        if (pos + length < 0): # 文字が左まで行って消えたら、posをリセット
-            pos = offscreen_canvas.width
-            # iをインクリメント、iがMAXなら0にする
-            if (i == len(atcl_arr)-1):
-                i = 0
-            else:
-                i += 1
+        # LEDマトリクス設定
+        options = RGBMatrixOptions()
+        options.rows = 32
+        options.cols = 64
+        options.gpio_slowdown = 0
+        self.matrix = RGBMatrix(options = options)
         
-        time.sleep(0.05)
-        offscreen_canvas = matrix.SwapOnVSync(offscreen_canvas)
+        # キャンバス作成
+        self.offscreen_canvas = self.matrix.CreateFrameCanvas()
+        
+        # 最低限のフォントだけ読み込み、WAITINGを表示させておく
+        print('display "WAITING..."')
+        font_simple = graphics.Font()
+        font_simple.LoadFont("/home/pi/rpi-rgb-led-matrix/fonts/10x20.bdf")
+        textColor_simple = graphics.Color(255, 255, 0)
+        graphics.DrawText(self.offscreen_canvas, font_simple, 0, 31, textColor_simple, "WAITING...") # 静止文字
+        
+        # 文字設定
+        print("setting LED matrix options...")
+        self.font.append(graphics.Font())
+        self.font[0].LoadFont("/home/pi/Downloads/font/sazanami-20040629/sazanami-gothic_16.bdf") # 上の行と分割しないとセグフォ
+        self.font.append(graphics.Font())
+        self.font[1].LoadFont("/home/pi/Downloads/font/misaki_bdf_2021-05-05/misaki_gothic_2nd.bdf")
+        self.textColor.append(graphics.Color(255, 255, 0))
+        
+        # 画像設定
+        self.image = Image.open("/home/pi/ledmatrix/twitter_dot.png")
 
+    # パネル点灯する関数
+    def displayLED(self):
+        global atcl_arr
+        global temp
+        
+        # Start loop
+        i = 0
+        pos = self.offscreen_canvas.width
+        print("display LED, Press CTRL-C to stop")
+        while True:
+            self.offscreen_canvas.Clear()
+            graphics.DrawText(self.offscreen_canvas, self.font[1], 0, 7, self.textColor[0], "外気温"+temp) # 静止文字
+            length = graphics.DrawText(self.offscreen_canvas, self.font[0], pos, 31, self.textColor[0], atcl_arr[i]) # 動く文字
+            self.matrix.SetImage(self.image.convert('RGB'), 0, 8, False) # 画像
+            
+            # 動く文字の位置をずらす
+            pos = pos - 1
+            if (pos + length < 0): # 文字が左まで行って消えたら、posをリセット
+                pos = self.offscreen_canvas.width
+                # iをインクリメント、iがMAXなら0にする
+                if (i == len(atcl_arr)-1):
+                    i = 0
+                else:
+                    i += 1
+            
+            time.sleep(0.05)
+            self.offscreen_canvas = self.matrix.SwapOnVSync(self.offscreen_canvas)
+    
 def worker():
     global atcl_arr
     global temp
@@ -110,18 +124,19 @@ def worker():
     temp = getTemperature()
 
 def mainloop(time_interval, f, another):
-    f() # 最初に情報取得してないと描画時にoutofindex
+    f() # 最初に情報取得の完了まで待たないと描画時にoutofindex
     
     now = time.time()
-    t0 = threading.Thread(target=another)
+    t0 = threading.Thread(target=another) # argsの,は必要。ないとエラー
     t0.setDaemon(True)
-    t0.start()
+    t0.start() # 描画
     while True: # 5分後、以後5分ごとに実行
         wait_time = time_interval - ( (time.time() - now) % time_interval )
         time.sleep(wait_time)
         t = threading.Thread(target=f)
         t.setDaemon(True)
-        t.start()
+        t.start() # 情報取得を実行
     
 if __name__ == "__main__":
-    mainloop(300, worker, displayLED)
+    LED = createLED()
+    mainloop(300, worker, LED.displayLED)
